@@ -3,6 +3,7 @@
 #include <Ticker.h>
 #include <AsyncMqttClient.h>
 #include <ArduinoJson.h>
+#include <NeoPixelBus.h>
 
 #include "main.h"
 #include "configuration.h"
@@ -12,6 +13,9 @@ DNSServer dnsServer;
 
 AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
+
+NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(NEO_PIXEL_COUNT, NEO_PIXEL_PIN);
+NeoTopology<ColumnMajorAlternatingLayout> matrix(NEO_PIXEL_WIDTH, NEO_PIXEL_HEIGHT);
 
 void setup() {
     Serial.begin(BAUD_RATE);
@@ -23,6 +27,7 @@ void setup() {
     pin_setup();
     wifi_setup();
     mqtt_setup();
+    led_setup();
 
     mqtt_connect();
 }
@@ -30,9 +35,6 @@ void setup() {
 void loop() {
 }
 
-/**
- * @brief Pin setup
- */
 void pin_setup() {
     Serial.println("[PIN] Start pin setup process");
 
@@ -45,10 +47,6 @@ void pin_setup() {
 
     Serial.println("[PIN] Pin setup process finished");
 }
-
-/**
- * @brief WiFi setup
- */
 void wifi_setup() {
     Serial.println("[WIFI] Connecting to WiFi");
     Serial.print("[WIFI] WiFiManager: ");
@@ -69,10 +67,6 @@ void wifi_setup() {
         Serial.println(wifiManager.getStatus(WiFiClass::status()));
     }
 }
-
-/**
- * @brief MQTT setup
- */
 void mqtt_setup() {
     Serial.println("[MQTT] Setup MQTT");
     mqttClient.onConnect(onMqttConnect);
@@ -83,6 +77,14 @@ void mqtt_setup() {
     mqttClient.onPublish(onMqttPublish);
     mqttClient.setServer(MQTT_HOST, MQTT_PORT);
     Serial.println("[MQTT] MQTT setup finished");
+}
+void led_setup() {
+    Serial.println("[LED] Setup LED, display every LED in black");
+    for (int i = 0; i < NEO_PIXEL_COUNT; i++) {
+        strip.SetPixelColor(i, RgbColor(0, 0, 0));
+    }
+    strip.Show();
+    Serial.println("[LED] LED setup finished");
 }
 
 void mqtt_connect() {

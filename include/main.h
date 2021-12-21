@@ -8,8 +8,9 @@
 
 void pin_setup();
 void wifi_setup();
-
+void led_setup();
 void mqtt_setup();
+
 void mqtt_connect();
 
 void onMqttConnect(bool sessionPresent);
