@@ -2,6 +2,7 @@
 #include <ESPAsync_WiFiManager.h>
 #include <Ticker.h>
 #include <AsyncMqttClient.h>
+#include <ArduinoJson.h>
 
 #include "main.h"
 #include "configuration.h"
@@ -121,6 +122,7 @@ void onMqttUnsubscribe(uint16_t packetId) {
     Serial.println(packetId);
 }
 void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+#ifdef DEBUG
     Serial.println("[MQTT] Publish received. Message info:");
     Serial.print("    - topic: ");
     Serial.println(topic);
@@ -139,9 +141,21 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
     Serial.println("    - payload: ");
     Serial.println(payload);
     Serial.println("[MQTT] Message info printing finished");
+#endif
+    mqttMessageHandler(payload);
 }
 void onMqttPublish(uint16_t packetId) {
     Serial.println("[MQTT] Publish acknowledged.");
     Serial.print("    - packetId: ");
     Serial.println(packetId);
+}
+
+void mqttMessageHandler(char* data) {
+    ArduinoJson6185_91::StaticJsonDocument<512> doc;
+    ArduinoJson6185_91::DeserializationError error = ArduinoJson6185_91::deserializeJson(doc, data);
+    if (error) {
+        Serial.print("[HANDLER] Json message deserialization failed: ");
+        Serial.println(error.f_str());
+        return;
+    }
 }
