@@ -19,6 +19,8 @@ void onMqttUnsubscribe(uint16_t packetId);
 void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 void onMqttPublish(uint16_t packetId);
 
+void log(const String& message);
+
 void mqttMessageHandler(char* data);
 
 #endif //MCU_COURSE_PROJECT_MAIN_H

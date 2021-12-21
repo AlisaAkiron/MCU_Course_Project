@@ -90,12 +90,11 @@ void mqtt_connect() {
     mqttClient.connect();
 }
 void onMqttConnect(bool sessionPresent) {
-    Serial.println("[MQTT] Connected to MQTT successfully");
-    Serial.print("[MQTT] Session present: ");
-    Serial.println(sessionPresent);
+    log("========================= NEW MQTT LOG SESSION ===========================");
+    log("[MQTT] Connected to MQTT successfully");
+    log("[MQTT] Session present: " + String(sessionPresent));
     uint16_t packetIdSub = mqttClient.subscribe(MQTT_TOPIC, MQTT_TOPIC_QOS);
-    Serial.print("[MQTT] Subscribing at QoS " + String(MQTT_TOPIC_QOS) + ", packetId: ");
-    Serial.println(packetIdSub);
+    log("[MQTT] Subscribing at QoS " + String(MQTT_TOPIC_QOS) + ", packetId: " + String(packetIdSub));
 }
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     Serial.println("[MQTT] Disconnected from MQTT.");
@@ -110,19 +109,17 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     }
 }
 void onMqttSubscribe(uint16_t packetId, uint8_t qos) {
-    Serial.println("[MQTT] Subscribe acknowledged.");
-    Serial.print("    - packetId: ");
-    Serial.println(packetId);
-    Serial.print("    - qos: ");
-    Serial.println(qos);
+    log("[MQTT] Subscribe acknowledged.");
+    log("    - packetId: " + String(packetId));
+    log("    - qos: " + String(qos));
 }
 void onMqttUnsubscribe(uint16_t packetId) {
-    Serial.println("[MQTT] Unsubscribe acknowledged.");
-    Serial.print("    - packetId: ");
-    Serial.println(packetId);
+    log("[MQTT] Unsubscribe acknowledged.");
+    log("    - packetId: " + String(packetId));
 }
 void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
 #ifdef DEBUG
+    log("[MQTT] Message received.");
     Serial.println("[MQTT] Publish received. Message info:");
     Serial.print("    - topic: ");
     Serial.println(topic);
@@ -146,16 +143,22 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
 }
 void onMqttPublish(uint16_t packetId) {
     Serial.println("[MQTT] Publish acknowledged.");
-    Serial.print("    - packetId: ");
-    Serial.println(packetId);
+    Serial.println("    - packetId: " + String(packetId));
+}
+
+void log(const String& message) {
+    const size_t strLength = message.length();
+    char* str = new char[strLength + 1];
+    message.toCharArray(str, strLength + 1);
+    Serial.println(message);
+    mqttClient.publish("esp32_log", 2, false, str, strLength, false, 0);
 }
 
 void mqttMessageHandler(char* data) {
     ArduinoJson6185_91::StaticJsonDocument<512> doc;
     ArduinoJson6185_91::DeserializationError error = ArduinoJson6185_91::deserializeJson(doc, data);
     if (error) {
-        Serial.print("[HANDLER] Json message deserialization failed: ");
-        Serial.println(error.f_str());
+        log("[HANDLER] Json message deserialization failed: " + String(error.f_str()));
         return;
     }
 }
