@@ -69,7 +69,6 @@ void wifi_setup() {
     }
 }
 
-
 /**
  * @brief MQTT setup
  */
