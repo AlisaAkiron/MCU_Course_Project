@@ -55,7 +55,7 @@ void loop() {
     switch (LoopMission) {
         case clock_display_update:
             time_display_update_mission();
-            delay(1000);
+            delay(100);
             break;
         case no_mission:
         default:
