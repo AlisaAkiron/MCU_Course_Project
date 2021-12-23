@@ -3,4 +3,4 @@ CMakeListsPrivate.txt
 cmake-build-*/ 
 .idea
 .DS_Store
-include/configuration.h
+include/MqttConfiguration.h

@@ -36,6 +36,7 @@ void display_clock(int tz);
 void time_display_update_mission();
 void led_matrix_refresh();
 void led_matrix_init();
+void update_display_color();
 
 time_t get_ntp_time();
 void sendNTPPacket(IPAddress &address);

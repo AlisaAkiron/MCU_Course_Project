@@ -7,29 +7,46 @@
 #include <TimeLib.h>
 
 #include "main.h"
-#include "configuration.h"
 
+#include "MqttConfiguration.h"
+#include "Configuration.h"
+
+/**********************/
+/*    Declaration     */
+/**********************/
+
+// Wifi manager required web server and dns server
 AsyncWebServer webServer(80);
 DNSServer dnsServer;
 
+// MQTT client declaration
 AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
 
+// Neo pixel declaration
 NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(NEO_PIXEL_COUNT, NEO_PIXEL_PIN);
 NeoTopology<ColumnMajorAlternatingLayout> matrix(NEO_PIXEL_WIDTH, NEO_PIXEL_HEIGHT);
 
+// LED matrix colors and brightness definition
 RgbColor colors[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
-RgbColor digitColor(255, 255, 255);
-const RgbColor blackColor(0, 0, 0);
+HslColor display_colors[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
 
+// Clock display mode
+RgbColor digitColor;
+
+// NTP time services
 WiFiUDP Udp;
-unsigned int localPort = 8888;
-static const char ntpServerName[] = "ntp.ntsc.ac.cn";
-int timezone = 0;
-time_t prevDisplay = 0;
+int time_zone;
+time_t prev_update_time = 0;
 
+// Loop mission
 Mission LoopMission = no_mission;
 
+/**********************/
+/* Arduino Life Cycle */
+/**********************/
+
+// Arduino setup
 void setup() {
     Serial.begin(BAUD_RATE);
     while (!Serial) {
@@ -46,10 +63,11 @@ void setup() {
     time_sync_setup();
 }
 
+// Arduino loop
 void loop() {
     if (timeStatus() != timeNotSet) {
-        if (now() != prevDisplay) {
-            prevDisplay = now();
+        if (now() != prev_update_time) {
+            prev_update_time = now();
         }
     }
     switch (LoopMission) {
@@ -62,6 +80,10 @@ void loop() {
             break;
     }
 }
+
+/**********************/
+/*      Set up        */
+/**********************/
 
 void pin_setup() {
     Serial.println("[PIN] Start pin setup process");
@@ -108,17 +130,23 @@ void mqtt_setup() {
 }
 void led_setup() {
     Serial.println("[LED] Setup LED, display every LED in black");
+    digitColor = RgbColor(digitColorRed, digitColorGreen, digitColorBlue);
     strip.Begin();
     led_matrix_init();
     Serial.println("[LED] LED setup finished");
 }
 void time_sync_setup() {
     log("[NTP] Setup time sync");
-    Udp.begin(localPort);
+    time_zone = 0;
+    Udp.begin(udpLocalPort);
     setSyncProvider(get_ntp_time);
     setSyncInterval(3600);
     log("[TIME] Time sync setup finished");
 }
+
+/**********************/
+/*     Async MQTT     */
+/**********************/
 
 void mqtt_connect() {
     Serial.println("[MQTT] Connecting to MQTT");
@@ -153,7 +181,6 @@ void onMqttUnsubscribe(uint16_t packetId) {
     log("    - packetId: " + String(packetId));
 }
 void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
-#ifdef DEBUG
     log("[MQTT] Message received.");
     Serial.println("[MQTT] Publish received. Message info:");
     Serial.print("    - topic: ");
@@ -173,13 +200,17 @@ void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties 
     Serial.println("    - payload: ");
     Serial.println(payload);
     Serial.println("[MQTT] Message info printing finished");
-#endif
+
     mqttMessageHandler(payload);
 }
 void onMqttPublish(uint16_t packetId) {
     Serial.println("[MQTT] Publish acknowledged.");
     Serial.println("    - packetId: " + String(packetId));
 }
+
+/**********************/
+/*       Logger       */
+/**********************/
 
 void log(const String& message) {
     const size_t strLength = message.length();
@@ -188,6 +219,10 @@ void log(const String& message) {
     Serial.println(message);
     mqttClient.publish("esp32_log", 2, false, str, strLength, false, 0);
 }
+
+/**********************/
+/*    MQTT Handler    */
+/**********************/
 
 void mqttMessageHandler(char* data) {
     ArduinoJson6185_91::StaticJsonDocument<4096> doc;
@@ -199,6 +234,10 @@ void mqttMessageHandler(char* data) {
 
     led_mode_helper(doc);
 }
+
+/**********************/
+/*   Message Resolve  */
+/**********************/
 
 // LED matrix helpers
 void led_mode_helper(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
@@ -227,12 +266,12 @@ void led_mode_helper(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
 }
 void display_single_pixel(int16_t x, int16_t y, RgbColor color) {
     colors[x][y] = color;
-    strip.SetPixelColor(matrix.Map(x, y), colors[x][y]);
-    strip.Show();
+    update_display_color();
+    led_matrix_refresh();
 }
 void display_clock(int tz) {
     // Set timezone and fetch time from NTP
-    timezone = tz;
+    time_zone = tz;
     time_sync_setup();
 
     // Clean LED matrix
@@ -284,18 +323,26 @@ void time_display_update_mission() {
 void led_matrix_refresh() {
     for (int16_t x = 0; x < NEO_PIXEL_WIDTH; x++) {
         for (int16_t y = 0; y < NEO_PIXEL_HEIGHT; y++) {
-            strip.SetPixelColor(matrix.Map(x, y), colors[x][y]);
+            strip.SetPixelColor(matrix.Map(x, y), display_colors[x][y]);
         }
     }
     strip.Show();
 }
 void led_matrix_init() {
-    for (auto & x : colors) {
-        for (auto & y : x) {
-            y = blackColor;
+    for (auto & row : colors) {
+        for (auto & pixel : row) {
+            pixel = blackColor;
         }
     }
     strip.Show();
+}
+void update_display_color() {
+    for (int16_t x = 0; x < NEO_PIXEL_WIDTH; x++) {
+        for (int16_t y = 0; y < NEO_PIXEL_HEIGHT; y++) {
+            HslColor c = HslColor(colors[x][y]);
+            display_colors[x][y] = HslColor(c.H, c.S, c.L * brightness);
+        }
+    }
 }
 
 /**********************/
@@ -305,7 +352,6 @@ void led_matrix_init() {
 // NTP
 const int NTP_PACKET_SIZE = 48;
 byte packetBuffer[NTP_PACKET_SIZE];
-
 time_t get_ntp_time() {
     IPAddress ntpServerIP;
 
@@ -325,7 +371,7 @@ time_t get_ntp_time() {
             secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
             secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
             secsSince1900 |= (unsigned long)packetBuffer[43];
-            return secsSince1900 - 2208988800UL + timezone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
+            return secsSince1900 - 2208988800UL + time_zone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
         }
     }
     log("[NTP] NTP server not response :-(");
