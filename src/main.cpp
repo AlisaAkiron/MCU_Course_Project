@@ -65,6 +65,7 @@ void setup() {
 
 // Arduino loop
 void loop() {
+    const unsigned long before = millis();
     switch (LoopMission) {
         case clock_display_update:
             if (timeStatus() != timeNotSet) {
@@ -78,6 +79,8 @@ void loop() {
         default:
             break;
     }
+    led_matrix_refresh();
+    delayMicroseconds(max(0, (int32_t)(16666 - (micros() - before))));
 }
 
 /**********************/
@@ -356,8 +359,6 @@ void time_display_update_mission() {
     set_digit_color(17, 1, m[1]);
     set_digit_color(23, 1, s[0]);
     set_digit_color(27, 1, s[1]);
-
-    led_matrix_refresh();
 }
 
 // Basic mission
