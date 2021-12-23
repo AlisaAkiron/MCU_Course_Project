@@ -286,7 +286,6 @@ void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& d
 void display_single_pixel(int16_t x, int16_t y, HslColor color) {
     colors[x][y] = HslColor(color.H, color.S, color.L * generalLightness);
     pixel_status[x][y] = PIXEL_ON;
-    led_matrix_refresh();
 }
 void display_clock(int tz) {
     // Set timezone and fetch time from NTP
@@ -314,13 +313,15 @@ void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) 
         return;
     }
 
-    if (strcmp(param, "brightness") == 0) {
-        float data = doc["data"]["value"];
-        if (data > 1.0) {
-            data = 1.0;
+    if (strcmp(param, "general_lightness") == 0) {
+        int16_t data = doc["data"]["value"];
+        if (data > 100) {
+            data = 100;
         }
-        generalLightness = data;
-        led_matrix_refresh();
+        if (data < 1) {
+            data = 1;
+        }
+        generalLightness = (float)data / 100.0f;
     }
     else {
         log("[SET] Unknown param detected, filed value is " + String(param));
