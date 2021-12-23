@@ -15,7 +15,7 @@
 #define NEO_PIXEL_PIN 23
 
 static unsigned int udpLocalPort = 8888;
-char ntpServerName[] = "ntp.ntsc.ac.cn";
+const char ntpServerName[] = "ntp.ntsc.ac.cn";
 
 const RgbColor blackColor(0, 0, 0);
 float brightness = 1.0;

@@ -65,15 +65,14 @@ void setup() {
 
 // Arduino loop
 void loop() {
-    if (timeStatus() != timeNotSet) {
-        if (now() != prev_update_time) {
-            prev_update_time = now();
-        }
-    }
     switch (LoopMission) {
         case clock_display_update:
-            time_display_update_mission();
-            delay(100);
+            if (timeStatus() != timeNotSet) {
+                if (now() != prev_update_time) {
+                    prev_update_time = now();
+                    time_display_update_mission();
+                }
+            }
             break;
         case no_mission:
         default:
@@ -232,21 +231,22 @@ void mqttMessageHandler(char* data) {
         return;
     }
 
-    led_mode_helper(doc);
+    mqtt_message_resolver(doc);
 }
 
 /**********************/
 /*   Message Resolve  */
 /**********************/
 
-// LED matrix helpers
-void led_mode_helper(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
+// Resolver
+void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
     log("[HANDLER] Detecting led matrix mode");
     const char* mode = doc["mode"];
     if (mode == nullptr) {
         log("[HANDLER] Mode not found, the \"mode\" field is missing");
         return;
     }
+
     if (strcmp(mode, "single") == 0) {
         log("[HANDLER] Single led mode detected");
         int16_t single_x = doc["data"]["x"];
@@ -260,10 +260,26 @@ void led_mode_helper(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
         int clock_timezone_offset = doc["data"]["tz"];
         display_clock(clock_timezone_offset);
     }
+    else if (strcmp(mode, "command") == 0) {
+        const char* type = doc["data"]["type"];
+        if (type == nullptr) {
+            log("[HANDLER] Type not found, the \"type\" field is missing");
+            return;
+        }
+
+        if (strcmp(type, "set") == 0) {
+            command_set_value(doc);
+        }
+        else {
+            log("[HANDLER] Unknown command type, filed value is " + String(type));
+        }
+    }
     else {
-        log("[HANDLER] Unknown mode detected");
+        log("[HANDLER] Unknown mode detected, field value is " + String(mode));
     }
 }
+
+// LED matrix helpers
 void display_single_pixel(int16_t x, int16_t y, RgbColor color) {
     colors[x][y] = color;
     update_display_color();
@@ -285,6 +301,27 @@ void display_clock(int tz) {
 
     // Setup loop mission
     LoopMission = Mission::clock_display_update;
+}
+
+// Command
+void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
+    const char* param = doc["data"]["param"];
+    if (param == nullptr) {
+        log("[SET] Param not found, the \"param\" field is missing");
+        return;
+    }
+
+    if (strcmp(param, "brightness") == 0) {
+        float data = doc["data"]["value"];
+        if (data > 1.0) {
+            data = 1.0;
+        }
+        brightness = data;
+        led_matrix_refresh();
+    }
+    else {
+        log("[SET] Unknown param detected, filed value is " + String(param));
+    }
 }
 
 /**********************/
@@ -371,7 +408,7 @@ time_t get_ntp_time() {
             secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
             secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
             secsSince1900 |= (unsigned long)packetBuffer[43];
-            return secsSince1900 - 2208988800UL + time_zone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
+            return 1 + secsSince1900 - 2208988800UL + time_zone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
         }
     }
     log("[NTP] NTP server not response :-(");
@@ -406,7 +443,6 @@ void set_digit_color(int16_t start_x, int16_t start_y, char ch) {
         case '0':
         {
             String("XXXXOXXOXXOXXXX").toCharArray(group, 16);
-            Serial.println(group);
             break;
         }
         case '1':
@@ -472,4 +508,5 @@ void set_digit_color(int16_t start_x, int16_t start_y, const char* group) {
             }
         }
     }
+    update_display_color();
 }

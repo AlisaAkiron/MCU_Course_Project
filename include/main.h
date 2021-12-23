@@ -28,10 +28,11 @@ void log(const String& message);
 
 void mqttMessageHandler(char* data);
 
-void led_mode_helper(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc);
+void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc);
 
 void display_single_pixel(int16_t x, int16_t y, RgbColor color);
 void display_clock(int tz);
+void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc);
 
 void time_display_update_mission();
 void led_matrix_refresh();
