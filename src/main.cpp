@@ -28,15 +28,15 @@ NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(NEO_PIXEL_COUNT, NEO_PIXEL_PI
 NeoTopology<ColumnMajorAlternatingLayout> matrix(NEO_PIXEL_WIDTH, NEO_PIXEL_HEIGHT);
 
 // LED matrix colors and brightness definition
-RgbColor colors[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
-HslColor display_colors[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
+HslColor colors[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
+bool pixel_status[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
 
 // Clock display mode
-RgbColor digitColor;
+HslColor digitColor;
 
 // NTP time services
 WiFiUDP Udp;
-int time_zone;
+int time_zone = 0;
 time_t prev_update_time = 0;
 
 // Loop mission
@@ -129,14 +129,13 @@ void mqtt_setup() {
 }
 void led_setup() {
     Serial.println("[LED] Setup LED, display every LED in black");
-    digitColor = RgbColor(digitColorRed, digitColorGreen, digitColorBlue);
+    digitColor = HslColor(digitColorHue, digitColorSaturation, digitColorLightness);
     strip.Begin();
     led_matrix_init();
     Serial.println("[LED] LED setup finished");
 }
 void time_sync_setup() {
     log("[NTP] Setup time sync");
-    time_zone = 0;
     Udp.begin(udpLocalPort);
     setSyncProvider(get_ntp_time);
     setSyncInterval(3600);
@@ -251,10 +250,14 @@ void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& d
         log("[HANDLER] Single led mode detected");
         int16_t single_x = doc["data"]["x"];
         int16_t single_y = doc["data"]["y"];
-        int8_t single_r = doc["data"]["r"];
-        int8_t single_g = doc["data"]["g"];
-        int8_t single_b = doc["data"]["b"];
-        display_single_pixel(single_x, single_y, RgbColor(single_r, single_g, single_b));
+        float single_h = doc["data"]["h"];
+        float single_s = doc["data"]["s"];
+        float single_l = doc["data"]["l"];
+        if (single_x > 31 || single_x < 0 || single_y > 7 || single_y < 0 || single_h > 1 || single_h < 0 || single_s > 1 || single_s < 0 || single_l > 1 || single_l < 0) {
+            log("[HANDLER] Single led mode data error");
+            return;
+        }
+        display_single_pixel(single_x, single_y, HslColor(single_h, single_s, single_l));
     }
     else if (strcmp(mode, "clock") == 0) {
         int clock_timezone_offset = doc["data"]["tz"];
@@ -280,9 +283,9 @@ void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& d
 }
 
 // LED matrix helpers
-void display_single_pixel(int16_t x, int16_t y, RgbColor color) {
-    colors[x][y] = color;
-    update_display_color();
+void display_single_pixel(int16_t x, int16_t y, HslColor color) {
+    colors[x][y] = HslColor(color.H, color.S, color.L * generalLightness);
+    pixel_status[x][y] = PIXEL_ON;
     led_matrix_refresh();
 }
 void display_clock(int tz) {
@@ -316,7 +319,7 @@ void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) 
         if (data > 1.0) {
             data = 1.0;
         }
-        brightness = data;
+        generalLightness = data;
         led_matrix_refresh();
     }
     else {
@@ -360,24 +363,32 @@ void time_display_update_mission() {
 void led_matrix_refresh() {
     for (int16_t x = 0; x < NEO_PIXEL_WIDTH; x++) {
         for (int16_t y = 0; y < NEO_PIXEL_HEIGHT; y++) {
-            strip.SetPixelColor(matrix.Map(x, y), display_colors[x][y]);
+            if (pixel_status[x][y]) {
+                strip.SetPixelColor(matrix.Map(x, y), colors[x][y]);
+            }
+            else {
+                strip.SetPixelColor(matrix.Map(x, y), blackColor);
+            }
         }
     }
     strip.Show();
 }
 void led_matrix_init() {
-    for (auto & row : colors) {
-        for (auto & pixel : row) {
-            pixel = blackColor;
-        }
-    }
+    led_matrix_fill(0, 0, NEO_PIXEL_WIDTH - 1, NEO_PIXEL_HEIGHT - 1, blackColor);
+    led_matrix_toggle(0, 0, NEO_PIXEL_WIDTH - 1, NEO_PIXEL_HEIGHT - 1, PIXEL_OFF);
     strip.Show();
 }
-void update_display_color() {
-    for (int16_t x = 0; x < NEO_PIXEL_WIDTH; x++) {
-        for (int16_t y = 0; y < NEO_PIXEL_HEIGHT; y++) {
-            HslColor c = HslColor(colors[x][y]);
-            display_colors[x][y] = HslColor(c.H, c.S, c.L * brightness);
+void led_matrix_fill(int16_t start_x, int16_t start_y, int16_t end_x, int16_t end_y, HslColor color) {
+    for (int16_t x = start_x; x <= end_x; x++) {
+        for (int16_t y = start_y; y <= end_y; y++) {
+            colors[x][y] = color;
+        }
+    }
+}
+void led_matrix_toggle(int16_t start_x, int16_t start_y, int16_t end_x, int16_t end_y, bool status) {
+    for (int16_t x = start_x; x <= end_x; x++) {
+        for (int16_t y = start_y; y <= end_y; y++) {
+            pixel_status[x][y] = status;
         }
     }
 }
@@ -498,15 +509,16 @@ void set_digit_color(int16_t start_x, int16_t start_y, char ch) {
     set_digit_color(start_x, start_y, group);
 }
 void set_digit_color(int16_t start_x, int16_t start_y, const char* group) {
+    led_matrix_fill(start_x, start_y, (int16_t)(start_x + 2), (int16_t)(start_y + 4),
+                    HslColor(digitColor.H, digitColor.S, digitColor.L * generalLightness));
     for (int16_t y = start_y; y < start_y + 5; y++) {
         for (int16_t x = start_x; x < start_x + 3; x++) {
             if (group[3 * (y - start_y) + (x - start_x)] == 'X') {
-                colors[x][y] = digitColor;
+                pixel_status[x][y] = true;
             }
             else {
-                colors[x][y] = blackColor;
+                pixel_status[x][y] = false;
             }
         }
     }
-    update_display_color();
 }

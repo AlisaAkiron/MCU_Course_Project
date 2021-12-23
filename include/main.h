@@ -30,14 +30,15 @@ void mqttMessageHandler(char* data);
 
 void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc);
 
-void display_single_pixel(int16_t x, int16_t y, RgbColor color);
+void display_single_pixel(int16_t x, int16_t y, HslColor color);
 void display_clock(int tz);
 void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc);
 
 void time_display_update_mission();
 void led_matrix_refresh();
 void led_matrix_init();
-void update_display_color();
+void led_matrix_fill(int16_t start_x, int16_t start_y, int16_t end_x, int16_t end_y, HslColor color);
+void led_matrix_toggle(int16_t start_x, int16_t start_y, int16_t end_x, int16_t end_y, bool status);
 
 time_t get_ntp_time();
 void sendNTPPacket(IPAddress &address);
