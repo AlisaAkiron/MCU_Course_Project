@@ -24,7 +24,7 @@ AsyncMqttClient mqttClient;
 Ticker mqttReconnectTimer;
 
 // Neo pixel declaration
-NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(NEO_PIXEL_COUNT, NEO_PIXEL_PIN);
+NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(NEO_PIXEL_COUNT, NEO_PIXEL_PIN);
 NeoTopology<ColumnMajorAlternatingLayout> matrix(NEO_PIXEL_WIDTH, NEO_PIXEL_HEIGHT);
 
 // LED matrix colors and brightness definition
@@ -322,16 +322,41 @@ void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) 
         log("[SET] General lightness set to " + String(data));
     }
     else if (strcmp(param, "digit_color") == 0) {
-        float data_h = doc["data"]["h"];
-        float data_s = doc["data"]["s"];
-        float data_l = doc["data"]["l"];
-        if (data_h > 100 || data_h < 0 || data_s > 100 || data_s < 0 || data_l > 50 || data_l < 0) {
-            data_h = 100;
-            data_s = 100;
-            data_l = 50;
+        const char* color_type = doc["data"]["color_type"];
+        if (strcmp(color_type, "hsl") == 0) {
+            float data_h = doc["data"]["h"];
+            float data_s = doc["data"]["s"];
+            float data_l = doc["data"]["l"];
+            if (data_h > 100 || data_h < 0 || data_s > 100 || data_s < 0 || data_l > 50 || data_l < 0) {
+                data_h = 100;
+                data_s = 100;
+                data_l = 50;
+            }
+            data_h /= 100.0f;
+            data_s /= 100.0f;
+            data_l /= 100.0f;
+            digitColor = HslColor(data_h, data_s, data_l);
+            RgbColor c(digitColor);
+            log("[SET] Digit color set to HSL(" + String(data_h) + ", " + String(data_s) + ", " + String(data_l) + ") "
+                + "aka. RGB(" + String(c.R) + ", " + String(c.G) + ", " + String(c.B) + ")");
         }
-        digitColor = HslColor(data_h / 100.0f, data_s / 100.0f, data_l / 100.0f);
-        log("[SET] Digit color set to HSL(" + String(data_h) + ", " + String(data_s) + ", " + String(data_l) + ")");
+        else if (strcmp(color_type, "rgb") == 0) {
+            int32_t data_r = doc["data"]["r"];
+            int32_t data_g = doc["data"]["g"];
+            int32_t data_b = doc["data"]["b"];
+            if (data_r > 255 || data_r < 0 || data_g > 255 || data_g < 0 || data_b > 255 || data_b < 0) {
+                data_r = 255;
+                data_g = 255;
+                data_b = 255;
+            }
+            digitColor = RgbColor(data_r, data_g, data_b);
+            HslColor c(digitColor);
+            log("[SET] Digit color set to RGB(" + String(data_r) + ", " + String(data_g) + ", " + String(data_b) + ") "
+                + "aka. HSL(" + String(c.H) + ", " + String(c.S) + ", " + String(c.L) + ")");
+        }
+        else {
+            log("[SET] Unknown color type, filed value is " + String(color_type));
+        }
     }
     else {
         log("[SET] Unknown param detected, filed value is " + String(param));
