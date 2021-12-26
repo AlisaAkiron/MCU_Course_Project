@@ -421,7 +421,7 @@ time_t get_ntp_time() {
             secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
             secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
             secsSince1900 |= (unsigned long)packetBuffer[43];
-            return 1 + secsSince1900 - 2208988800UL + time_zone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
+            return secsSince1900 - 2208988800UL + time_zone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
         }
     }
     log("[NTP] NTP server not response :-(");
