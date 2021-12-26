@@ -22,9 +22,9 @@ const char ntpServerName[] = "ntp.ntsc.ac.cn";
 
 const HslColor blackColor(0, 0, 0);
 float generalLightness = 1.0;
-float digitColorHue = 255;
-float digitColorSaturation = 255;
-float digitColorLightness = 1;
+float digitColorHue = 0.0;
+float digitColorSaturation = 0.0;
+float digitColorLightness = 0.5;
 
 
 #endif //MCU_COURSE_PROJECT_CONFIGURATION_H

@@ -298,12 +298,6 @@ void display_clock(int tz) {
     // Clean LED matrix
     led_matrix_init();
 
-    // Display clock dot
-    display_single_pixel(11, 2, digitColor);
-    display_single_pixel(11, 4, digitColor);
-    display_single_pixel(21, 2, digitColor);
-    display_single_pixel(21, 4, digitColor);
-
     // Setup loop mission
     LoopMission = Mission::clock_display_update;
 }
@@ -318,13 +312,26 @@ void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) 
 
     if (strcmp(param, "general_lightness") == 0) {
         int16_t data = doc["data"]["value"];
-        if (data > 100) {
-            data = 100;
+        if (data > 50) {
+            data = 50;
         }
         if (data < 1) {
             data = 1;
         }
         generalLightness = (float)data / 100.0f;
+        log("[SET] General lightness set to " + String(data));
+    }
+    else if (strcmp(param, "digit_color") == 0) {
+        float data_h = doc["data"]["h"];
+        float data_s = doc["data"]["s"];
+        float data_l = doc["data"]["l"];
+        if (data_h > 100 || data_h < 0 || data_s > 100 || data_s < 0 || data_l > 50 || data_l < 0) {
+            data_h = 100;
+            data_s = 100;
+            data_l = 50;
+        }
+        digitColor = HslColor(data_h / 100.0f, data_s / 100.0f, data_l / 100.0f);
+        log("[SET] Digit color set to HSL(" + String(data_h) + ", " + String(data_s) + ", " + String(data_l) + ")");
     }
     else {
         log("[SET] Unknown param detected, filed value is " + String(param));
@@ -359,6 +366,11 @@ void time_display_update_mission() {
     set_digit_color(17, 1, m[1]);
     set_digit_color(23, 1, s[0]);
     set_digit_color(27, 1, s[1]);
+
+    display_single_pixel(11, 2, digitColor);
+    display_single_pixel(11, 4, digitColor);
+    display_single_pixel(21, 2, digitColor);
+    display_single_pixel(21, 4, digitColor);
 }
 
 // Basic mission
