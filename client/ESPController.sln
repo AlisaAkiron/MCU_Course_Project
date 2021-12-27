@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESPController", "ESPController\ESPController.csproj", "{8F0669D7-8036-43B1-9705-1FA620A84FB7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ESPMonitor", "ESPMonitor\ESPMonitor.csproj", "{56BB566A-ED5E-45D5-83EC-549FE3881961}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{8F0669D7-8036-43B1-9705-1FA620A84FB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F0669D7-8036-43B1-9705-1FA620A84FB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F0669D7-8036-43B1-9705-1FA620A84FB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56BB566A-ED5E-45D5-83EC-549FE3881961}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56BB566A-ED5E-45D5-83EC-549FE3881961}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56BB566A-ED5E-45D5-83EC-549FE3881961}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56BB566A-ED5E-45D5-83EC-549FE3881961}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
