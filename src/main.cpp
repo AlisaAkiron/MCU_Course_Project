@@ -42,6 +42,11 @@ time_t prev_update_time = 0;
 // Loop mission
 Mission LoopMission = no_mission;
 
+// Buffer
+String mqttBuffer;
+uint32_t mqttLength = 0;
+HslColor frameBuffer[NEO_PIXEL_WIDTH][NEO_PIXEL_HEIGHT];
+
 /**********************/
 /* Arduino Life Cycle */
 /**********************/
@@ -52,6 +57,7 @@ void setup() {
     while (!Serial) {
         delay(100);
     }
+    Serial.println();
     Serial.println("[SERIAL] Serial started with baud rate: " + String(BAUD_RATE));
 
     pin_setup();
@@ -126,7 +132,6 @@ void mqtt_setup() {
     mqttClient.onSubscribe(onMqttSubscribe);
     mqttClient.onUnsubscribe(onMqttUnsubscribe);
     mqttClient.onMessage(onMqttMessage);
-    mqttClient.onPublish(onMqttPublish);
     mqttClient.setServer(MQTT_HOST, MQTT_PORT);
     Serial.println("[MQTT] MQTT setup finished");
 }
@@ -157,7 +162,7 @@ void onMqttConnect(bool sessionPresent) {
     log("========================= NEW MQTT LOG SESSION ===========================");
     log("[MQTT] Connected to MQTT successfully");
     log("[MQTT] Session present: " + String(sessionPresent));
-    uint16_t packetIdSub = mqttClient.subscribe(MQTT_TOPIC, MQTT_TOPIC_QOS);
+    uint16_t packetIdSub = mqttClient.subscribe(MQTT_MAIN_TOPIC, MQTT_TOPIC_QOS);
     log("[MQTT] Subscribing at QoS " + String(MQTT_TOPIC_QOS) + ", packetId: " + String(packetIdSub));
 }
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -181,107 +186,71 @@ void onMqttUnsubscribe(uint16_t packetId) {
     log("[MQTT] Unsubscribe acknowledged.");
     log("    - packetId: " + String(packetId));
 }
-void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+void onMqttMessage(__attribute__((unused)) char* topic, char* payload,
+                   __attribute__((unused)) AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
     log("[MQTT] Message received.");
-    Serial.println("[MQTT] Publish received. Message info:");
-    Serial.print("    - topic: ");
-    Serial.println(topic);
-    Serial.print("    - qos: ");
-    Serial.println(properties.qos);
-    Serial.print("    - dup: ");
-    Serial.println(properties.dup);
-    Serial.print("    - retain: ");
-    Serial.println(properties.retain);
-    Serial.print("    - len: ");
-    Serial.println(len);
-    Serial.print("    - index: ");
-    Serial.println(index);
-    Serial.print("    - total: ");
-    Serial.println(total);
-    Serial.println("    - payload: ");
-    Serial.println(payload);
-    Serial.println("[MQTT] Message info printing finished");
-
-    mqttMessageHandler(payload);
-}
-void onMqttPublish(uint16_t packetId) {
-    Serial.println("[MQTT] Publish acknowledged.");
-    Serial.println("    - packetId: " + String(packetId));
+    mqttBuffer.concat(payload);
+    mqttLength += len;
+    if (mqttLength == total) {
+        log("[MQTT] Message received completely");
+        mqttMessageHandler(mqttBuffer);
+        mqttBuffer.clear();
+        mqttLength = 0;
+    }
 }
 
 /**********************/
 /*       Logger       */
 /**********************/
 
-void log(const String& message) {
+void log(const String& message, bool disable) {
+    if (disable) {
+        return;
+    }
     const size_t strLength = message.length();
     char* str = new char[strLength + 1];
     message.toCharArray(str, strLength + 1);
     Serial.println(message);
-    mqttClient.publish("esp32_log", 2, false, str, strLength, false, 0);
+    mqttClient.publish(MQTT_LOG_TOPIC, 2, false, str, strLength, false, 0);
 }
 
 /**********************/
 /*    MQTT Handler    */
 /**********************/
 
-void mqttMessageHandler(char* data) {
-    ArduinoJson6185_91::StaticJsonDocument<4096> doc;
-    ArduinoJson6185_91::DeserializationError error = ArduinoJson6185_91::deserializeJson(doc, data);
+void mqttMessageHandler(String data) {
+    ArduinoJson::DynamicJsonDocument doc(36864);
+    ArduinoJson::DeserializationError error = ArduinoJson::deserializeJson(doc, data);
     if (error) {
         log("[HANDLER] Json message deserialization failed: " + String(error.f_str()));
         return;
     }
-
-    mqtt_message_resolver(doc);
+    mqtt_message_distributor(doc);
 }
 
 /**********************/
 /*   Message Resolve  */
 /**********************/
 
-// Resolver
-void mqtt_message_resolver(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
+// Distributor
+void mqtt_message_distributor(const ArduinoJson::DynamicJsonDocument & doc) {
     log("[HANDLER] Detecting led matrix mode");
-    const char* mode = doc["mode"];
+    const char* mode = doc["type"];
     if (mode == nullptr) {
-        log("[HANDLER] Mode not found, the \"mode\" field is missing");
+        log("[HANDLER] Type not found, the \"type\" field is missing");
         return;
     }
 
-    if (strcmp(mode, "single") == 0) {
-        log("[HANDLER] Single led mode detected");
-        int16_t single_x = doc["data"]["x"];
-        int16_t single_y = doc["data"]["y"];
-        float single_h = doc["data"]["h"];
-        float single_s = doc["data"]["s"];
-        float single_l = doc["data"]["l"];
-        if (single_x > 31 || single_x < 0 || single_y > 7 || single_y < 0 || single_h > 1 || single_h < 0 || single_s > 1 || single_s < 0 || single_l > 1 || single_l < 0) {
-            log("[HANDLER] Single led mode data error");
-            return;
-        }
-        display_single_pixel(single_x, single_y, HslColor(single_h, single_s, single_l));
-    }
-    else if (strcmp(mode, "clock") == 0) {
-        int clock_timezone_offset = doc["data"]["tz"];
-        display_clock(clock_timezone_offset);
+    if (strcmp(mode, "mode") == 0) {
+        log("[HANDLER] Mode type detected");
+        mode_resolver(doc);
     }
     else if (strcmp(mode, "command") == 0) {
-        const char* type = doc["data"]["type"];
-        if (type == nullptr) {
-            log("[HANDLER] Type not found, the \"type\" field is missing");
-            return;
-        }
-
-        if (strcmp(type, "set") == 0) {
-            command_set_value(doc);
-        }
-        else {
-            log("[HANDLER] Unknown command type, filed value is " + String(type));
-        }
+        log("[HANDLER] Command type detected");
+        command_resolver(doc);
     }
     else {
-        log("[HANDLER] Unknown mode detected, field value is " + String(mode));
+        log("[HANDLER] Unknown type detected, field value is " + String(mode));
     }
 }
 
@@ -302,66 +271,89 @@ void display_clock(int tz) {
     LoopMission = Mission::clock_display_update;
 }
 
-// Command
-void command_set_value(const ArduinoJson6185_91::StaticJsonDocument<4096>& doc) {
-    const char* param = doc["data"]["param"];
-    if (param == nullptr) {
-        log("[SET] Param not found, the \"param\" field is missing");
-        return;
+// Main Resolver
+void mode_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
+    auto data = doc["data"];
+    String mode = data["mode"];
+    if (mode == "single") {
+        log("[HANDLER] Single mode detected");
+        int16_t x = data["value"]["x"];
+        int16_t y = data["value"]["y"];
+        int16_t r = data["value"]["r"];
+        int16_t g = data["value"]["g"];
+        int16_t b = data["value"]["b"];
+        HslColor color = HslColor(RgbColor(r, g, b));
+        display_single_pixel(x, y, color);
+        log("[HANDLER] Single mode resolved, display at (" + String(x) + ", " + String(y) + ") with color" +
+            "RGB(" + String(r) + ", " + String(g) + ", " + String(b) + ") aka HSL(" +
+            String(color.H) + ", " + String(color.S) + ", " + String(color.L) + ")");
     }
-
-    if (strcmp(param, "general_lightness") == 0) {
-        int16_t data = doc["data"]["value"];
-        if (data > 50) {
-            data = 50;
-        }
-        if (data < 1) {
-            data = 1;
-        }
-        generalLightness = (float)data / 100.0f;
-        log("[SET] General lightness set to " + String(data));
+    else if (mode == "clock") {
+        log("[HANDLER] Clock mode detected");
+        int tz = data["value"]["tz"];
+        display_clock(tz);
+        log("[HANDLER] Clock mode activated");
     }
-    else if (strcmp(param, "digit_color") == 0) {
-        const char* color_type = doc["data"]["color_type"];
-        if (strcmp(color_type, "hsl") == 0) {
-            float data_h = doc["data"]["h"];
-            float data_s = doc["data"]["s"];
-            float data_l = doc["data"]["l"];
-            if (data_h > 100 || data_h < 0 || data_s > 100 || data_s < 0 || data_l > 50 || data_l < 0) {
-                data_h = 100;
-                data_s = 100;
-                data_l = 50;
+    else if (mode == "picture") {
+        log("[HANDLER] Picture mode detected");
+        int16_t part = data["value"]["part"];
+        auto frame = data["value"]["frame"];
+        for (int i = 0; i < NEO_PIXEL_WIDTH * NEO_PIXEL_HEIGHT; i++) {
+            int16_t x = frame[i]["x"];
+            int16_t y = frame[i]["y"];
+            int16_t r = frame[i]["r"];
+            int16_t g = frame[i]["g"];
+            int16_t b = frame[i]["b"];
+            HslColor color = HslColor(RgbColor(r, g, b));
+            frameBuffer[x][y] = color;
+        }
+        log("[HANDLER] Add frame command resolved, part " + String(part) + " added to buffer");
+        if (part == 8) {
+            log("[HANDLER] All frame parts added, display picture");
+            led_matrix_init();
+            LoopMission = Mission::no_mission;
+            for (int x = 0; x < NEO_PIXEL_WIDTH; x++) {
+                for (int y = 0; y < NEO_PIXEL_HEIGHT; y++) {
+                    colors[x][y] = frameBuffer[x][y];
+                }
             }
-            data_h /= 100.0f;
-            data_s /= 100.0f;
-            data_l /= 100.0f;
-            digitColor = HslColor(data_h, data_s, data_l);
-            RgbColor c(digitColor);
-            log("[SET] Digit color set to HSL(" + String(data_h) + ", " + String(data_s) + ", " + String(data_l) + ") "
-                + "aka. RGB(" + String(c.R) + ", " + String(c.G) + ", " + String(c.B) + ")");
+            led_matrix_toggle(0, 0, 31, 31, PIXEL_ON);
+            led_matrix_refresh();
         }
-        else if (strcmp(color_type, "rgb") == 0) {
-            int32_t data_r = doc["data"]["r"];
-            int32_t data_g = doc["data"]["g"];
-            int32_t data_b = doc["data"]["b"];
-            if (data_r > 255 || data_r < 0 || data_g > 255 || data_g < 0 || data_b > 255 || data_b < 0) {
-                data_r = 255;
-                data_g = 255;
-                data_b = 255;
-            }
-            digitColor = RgbColor(data_r, data_g, data_b);
-            HslColor c(digitColor);
-            log("[SET] Digit color set to RGB(" + String(data_r) + ", " + String(data_g) + ", " + String(data_b) + ") "
-                + "aka. HSL(" + String(c.H) + ", " + String(c.S) + ", " + String(c.L) + ")");
-        }
-        else {
-            log("[SET] Unknown color type, filed value is " + String(color_type));
-        }
+    }
+    else if (mode == "stop") {
+        log("[HANDLER] Stop mode detected");
+        LoopMission = no_mission;
+        led_matrix_init();
+        log("[HANDLER] Stop mode mission completed");
     }
     else {
-        log("[SET] Unknown param detected, filed value is " + String(param));
+        log("[HANDLER] Unknown mode detected, field value is " + String(mode));
     }
 }
+void command_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
+    auto data = doc["data"];
+    String command = data["command"];
+    if (command == "set_general_lightness") {
+        log("[HANDLER] Set general lightness command detected");
+        float lightness = data["param"]["lightness"];
+        generalLightness = lightness;
+        log("[HANDLER] General lightness set to " + String(lightness));
+    }
+    else if (command == "set_digit_color") {
+        log("[HANDLER] Set digit color command detected");
+        int16_t r = data["param"]["r"];
+        int16_t g = data["param"]["g"];
+        int16_t b = data["param"]["b"];
+        digitColor = HslColor(RgbColor(r, g, b));
+        log("[HANDLER] Set digit color to RGB(" + String(r) + ", " + String(g) + ", " + String(b) + ") " +
+            "aka HSL(" + String(digitColor.H) + ", " + String(digitColor.S) + ", " + String(digitColor.L) + ")");
+    }
+    else {
+        log("[HANDLER] Unknown command detected, field value is " + String(command));
+    }
+}
+
 
 /**********************/
 /*       Mission      */

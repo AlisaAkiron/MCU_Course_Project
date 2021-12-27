@@ -17,6 +17,8 @@
 #define PIXEL_ON true
 #define PIXEL_OFF false
 
+#define DEBUG_MODE false
+
 static unsigned int udpLocalPort = 8888;
 const char ntpServerName[] = "ntp.ntsc.ac.cn";
 
