@@ -17,7 +17,9 @@
 #define PIXEL_ON true
 #define PIXEL_OFF false
 
-#define DEBUG_MODE false
+#define WEB_SERVER_PORT 80
+
+#define LOG_LEVEL 1
 
 static unsigned int udpLocalPort = 8888;
 const char ntpServerName[] = "ntp.ntsc.ac.cn";

@@ -26,7 +26,7 @@ void onMqttUnsubscribe(uint16_t packetId);
 void onMqttMessage(__attribute__((unused)) char* topic, char* payload,
                    __attribute__((unused)) AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);
 
-void log(const String& message, bool disable = false);
+void log(const String& message, int log_level = 0);
 
 void mqttMessageHandler(String data);
 

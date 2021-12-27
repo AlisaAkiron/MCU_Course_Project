@@ -16,7 +16,7 @@
 /**********************/
 
 // Wifi manager required web server and dns server
-AsyncWebServer webServer(80);
+AsyncWebServer webServer(WEB_SERVER_PORT);
 DNSServer dnsServer;
 
 // MQTT client declaration
@@ -143,11 +143,11 @@ void led_setup() {
     Serial.println("[LED] LED setup finished");
 }
 void time_sync_setup() {
-    log("[NTP] Setup time sync");
+    log("[NTP] Setup time sync", 1);
     Udp.begin(udpLocalPort);
     setSyncProvider(get_ntp_time);
     setSyncInterval(3600);
-    log("[TIME] Time sync setup finished");
+    log("[TIME] Time sync setup finished", 1);
 }
 
 /**********************/
@@ -159,11 +159,11 @@ void mqtt_connect() {
     mqttClient.connect();
 }
 void onMqttConnect(bool sessionPresent) {
-    log("========================= NEW MQTT LOG SESSION ===========================");
-    log("[MQTT] Connected to MQTT successfully");
-    log("[MQTT] Session present: " + String(sessionPresent));
+    log("========================= NEW MQTT LOG SESSION ===========================", 1);
+    log("[MQTT] Connected to MQTT successfully", 1);
+    log("[MQTT] Session present: " + String(sessionPresent), 1);
     uint16_t packetIdSub = mqttClient.subscribe(MQTT_MAIN_TOPIC, MQTT_TOPIC_QOS);
-    log("[MQTT] Subscribing at QoS " + String(MQTT_TOPIC_QOS) + ", packetId: " + String(packetIdSub));
+    log("[MQTT] Subscribing at QoS " + String(MQTT_TOPIC_QOS) + ", packetId: " + String(packetIdSub), 1);
 }
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     Serial.println("[MQTT] Disconnected from MQTT.");
@@ -178,16 +178,17 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     }
 }
 void onMqttSubscribe(uint16_t packetId, uint8_t qos) {
-    log("[MQTT] Subscribe acknowledged.");
-    log("    - packetId: " + String(packetId));
-    log("    - qos: " + String(qos));
+    log("[MQTT] Subscribe acknowledged.", 1);
+    log("    - packetId: " + String(packetId), 1);
+    log("    - qos: " + String(qos), 1);
 }
 void onMqttUnsubscribe(uint16_t packetId) {
-    log("[MQTT] Unsubscribe acknowledged.");
-    log("    - packetId: " + String(packetId));
+    log("[MQTT] Unsubscribe acknowledged.", 1);
+    log("    - packetId: " + String(packetId), 1);
 }
 void onMqttMessage(__attribute__((unused)) char* topic, char* payload,
-                   __attribute__((unused)) AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+                   __attribute__((unused)) AsyncMqttClientMessageProperties properties, size_t len,
+                   __attribute__((unused)) size_t index, size_t total) {
     log("[MQTT] Message received.");
     mqttBuffer.concat(payload);
     mqttLength += len;
@@ -203,8 +204,8 @@ void onMqttMessage(__attribute__((unused)) char* topic, char* payload,
 /*       Logger       */
 /**********************/
 
-void log(const String& message, bool disable) {
-    if (disable) {
+void log(const String& message, int log_level) {
+    if (log_level < LOG_LEVEL) {
         return;
     }
     const size_t strLength = message.length();
@@ -222,7 +223,7 @@ void mqttMessageHandler(String data) {
     ArduinoJson::DynamicJsonDocument doc(36864);
     ArduinoJson::DeserializationError error = ArduinoJson::deserializeJson(doc, data);
     if (error) {
-        log("[HANDLER] Json message deserialization failed: " + String(error.f_str()));
+        log("[HANDLER] Json message deserialization failed: " + String(error.f_str()), 2);
         return;
     }
     mqtt_message_distributor(doc);
@@ -237,7 +238,7 @@ void mqtt_message_distributor(const ArduinoJson::DynamicJsonDocument & doc) {
     log("[HANDLER] Detecting led matrix mode");
     const char* mode = doc["type"];
     if (mode == nullptr) {
-        log("[HANDLER] Type not found, the \"type\" field is missing");
+        log("[HANDLER] Type not found, the \"type\" field is missing", 2);
         return;
     }
 
@@ -250,7 +251,7 @@ void mqtt_message_distributor(const ArduinoJson::DynamicJsonDocument & doc) {
         command_resolver(doc);
     }
     else {
-        log("[HANDLER] Unknown type detected, field value is " + String(mode));
+        log("[HANDLER] Unknown type detected, field value is " + String(mode), 2);
     }
 }
 
@@ -286,13 +287,13 @@ void mode_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
         display_single_pixel(x, y, color);
         log("[HANDLER] Single mode resolved, display at (" + String(x) + ", " + String(y) + ") with color" +
             "RGB(" + String(r) + ", " + String(g) + ", " + String(b) + ") aka HSL(" +
-            String(color.H) + ", " + String(color.S) + ", " + String(color.L) + ")");
+            String(color.H) + ", " + String(color.S) + ", " + String(color.L) + ")", 1);
     }
     else if (mode == "clock") {
         log("[HANDLER] Clock mode detected");
         int tz = data["value"]["tz"];
         display_clock(tz);
-        log("[HANDLER] Clock mode activated");
+        log("[HANDLER] Clock mode activated", 1);
     }
     else if (mode == "picture") {
         log("[HANDLER] Picture mode detected");
@@ -325,10 +326,10 @@ void mode_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
         log("[HANDLER] Stop mode detected");
         LoopMission = no_mission;
         led_matrix_init();
-        log("[HANDLER] Stop mode mission completed");
+        log("[HANDLER] Stop mode mission completed", 1);
     }
     else {
-        log("[HANDLER] Unknown mode detected, field value is " + String(mode));
+        log("[HANDLER] Unknown mode detected, field value is " + String(mode), 2);
     }
 }
 void command_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
@@ -338,7 +339,7 @@ void command_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
         log("[HANDLER] Set general lightness command detected");
         float lightness = data["param"]["lightness"];
         generalLightness = lightness;
-        log("[HANDLER] General lightness set to " + String(lightness));
+        log("[HANDLER] General lightness set to " + String(lightness), 1);
     }
     else if (command == "set_digit_color") {
         log("[HANDLER] Set digit color command detected");
@@ -347,10 +348,10 @@ void command_resolver(const ArduinoJson::DynamicJsonDocument& doc) {
         int16_t b = data["param"]["b"];
         digitColor = HslColor(RgbColor(r, g, b));
         log("[HANDLER] Set digit color to RGB(" + String(r) + ", " + String(g) + ", " + String(b) + ") " +
-            "aka HSL(" + String(digitColor.H) + ", " + String(digitColor.S) + ", " + String(digitColor.L) + ")");
+            "aka HSL(" + String(digitColor.H) + ", " + String(digitColor.S) + ", " + String(digitColor.L) + ")", 1);
     }
     else {
-        log("[HANDLER] Unknown command detected, field value is " + String(command));
+        log("[HANDLER] Unknown command detected, field value is " + String(command), 2);
     }
 }
 
@@ -453,7 +454,7 @@ time_t get_ntp_time() {
             return secsSince1900 - 2208988800UL + time_zone * 3600; // NOLINT(cppcoreguidelines-narrowing-conversions)
         }
     }
-    log("[NTP] NTP server not response :-(");
+    log("[NTP] NTP server not response :-(", 2);
     return 0;
 }
 void sendNTPPacket(IPAddress &address)
