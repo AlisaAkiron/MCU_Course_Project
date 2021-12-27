@@ -5,5 +5,6 @@ public enum Modes
     Single,
     Clock,
     Picture,
+    PictureGroup,
     Stop
 }

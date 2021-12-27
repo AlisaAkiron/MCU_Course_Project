@@ -43,22 +43,25 @@ public static class ModeJsonStrings
                 {
                     throw new FileNotFoundException("File not found");
                 }
-                var imageColorMap = GetImageBytes(fi.FullName);
-                var splitMap = new List<List<ColorMap>>();
-                for (var i = 1; i <= 8; i++)
+                return GetPicturePayload(fi.FullName);
+            case Modes.PictureGroup:
+                if (param.Length != 2)
                 {
-                    splitMap.Add(imageColorMap.Skip((i - 1) * 32).Take(32).ToList());
+                    throw new ArgumentException("Invalid number of parameters");
                 }
-                var serializedStrings = splitMap
-                    .Select(x => JsonSerializer.Serialize(x)).ToList();
-                var payloads = new List<string>();
-                for (var i = 1; i <= 8; i++)
+                var di = new DirectoryInfo(param[0]);
+                if (di.Exists is false)
                 {
-                    payloads.Add(PictureMode
-                        .Replace("{0}", i.ToString())
-                        .Replace("{1}", serializedStrings[i - 1]));
+                    throw new FileNotFoundException("Directory not found");
                 }
-                var payload = payloads.Aggregate((x, y) => x + "||" + y);
+
+                var files = di.GetFiles()
+                    .Where(x => x.Extension is ".jpg" or ".jpeg" or ".png" or ".bmp")
+                    .OrderBy(x => x.Name)
+                    .ToList();
+                var payload = files
+                    .Select(file => GetPicturePayload(file.FullName))
+                    .Aggregate((x, y) => x + "&&" + y);
                 return payload;
             case Modes.Stop:
                 return StopMode;
@@ -67,6 +70,26 @@ public static class ModeJsonStrings
         }
     }
 
+    private static string GetPicturePayload(string path)
+    {
+        var imageColorMap = GetImageBytes(path);
+        var splitMap = new List<List<ColorMap>>();
+        for (var i = 1; i <= 8; i++)
+        {
+            splitMap.Add(imageColorMap.Skip((i - 1) * 32).Take(32).ToList());
+        }
+        var serializedStrings = splitMap
+            .Select(x => JsonSerializer.Serialize(x)).ToList();
+        var payloads = new List<string>();
+        for (var i = 1; i <= 8; i++)
+        {
+            payloads.Add(PictureMode
+                .Replace("{0}", i.ToString())
+                .Replace("{1}", serializedStrings[i - 1]));
+        }
+        var payload = payloads.Aggregate((x, y) => x + "||" + y);
+        return payload;
+    }
     private static List<ColorMap> GetImageBytes(string path)
     {
         var image = Image.Load<Rgb24>(path);

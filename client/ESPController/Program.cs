@@ -10,7 +10,7 @@ const string mqttMainTopic = "esp/main";
 var factory = new MqttFactory();
 var options = new MqttClientOptionsBuilder()
     .WithClientId("dotnet-mqtt-client")
-    .WithTcpServer("server.liamsho.xyz")
+    .WithTcpServer("192.168.43.187")
     .WithCleanSession()
     .Build();
 
@@ -67,6 +67,46 @@ void ModeExecutor(string mode, string[] param)
             foreach (var data in payloads)
             {
                 MqttPublish(data).Wait();
+            }
+            break;
+        case "picture_group":
+            var pictureGroupData = ModeJsonStrings.GetModeJsonString(Modes.PictureGroup, param);
+            var payloadsGroup = pictureGroupData.Split("&&");
+            var payload = payloadsGroup.Select(x => x.Split("||")).ToList();
+            var inf = param[1] == "inf";
+            if (inf)
+            {
+                while (true)
+                {
+                    foreach (var picturePayloads in payload)
+                    {
+                        foreach (var picturePayload in picturePayloads)
+                        {
+                            MqttPublish(picturePayload).Wait();
+                            Thread.Sleep(100);
+                        }
+                        Thread.Sleep(1000);
+                    }
+                }
+            }
+            else
+            {
+                if (int.TryParse(param[1], out var times) is false)
+                {
+                    throw new Exception("Invalid times");
+                }
+                for (var i = 0; i < times; i++)
+                {
+                    foreach (var picturePayloads in payload)
+                    {
+                        foreach (var picturePayload in picturePayloads)
+                        {
+                            MqttPublish(picturePayload).Wait();
+                            Thread.Sleep(100);
+                        }
+                        Thread.Sleep(1000);
+                    }
+                }
             }
             break;
         case "stop":
