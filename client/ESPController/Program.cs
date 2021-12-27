@@ -10,7 +10,7 @@ const string mqttMainTopic = "esp/main";
 var factory = new MqttFactory();
 var options = new MqttClientOptionsBuilder()
     .WithClientId("dotnet-mqtt-client")
-    .WithTcpServer("192.168.43.187")
+    .WithTcpServer("192.168.43.187")            // MQTT broker address
     .WithCleanSession()
     .Build();
 
