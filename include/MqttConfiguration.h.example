@@ -1,0 +1,13 @@
+#ifndef MCU_COURSE_PROJECT_MQTTCONFIGURATION_H
+#define MCU_COURSE_PROJECT_MQTTCONFIGURATION_H
+
+
+#define MQTT_HOST "192.168.43.187"      // MQTT Address
+#define MQTT_PORT 1883                  // MQTT Port
+#define MQTT_MAIN_TOPIC "esp/main"      // MQTT Main Topic
+#define MQTT_LOG_TOPIC "esp/log"        // MQTT ESP32 Logging Topic
+#define MQTT_TOPIC_QOS 0                // MQTT Main Topic QoS
+#define MQTT_RECONNECT_TIMEOUT 5        // MQTT Reconnect Timeout
+
+
+#endif //MCU_COURSE_PROJECT_MQTTCONFIGURATION_H
