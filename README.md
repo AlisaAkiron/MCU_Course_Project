@@ -70,6 +70,10 @@
 
 * `command set digit_color [R] [G] [B]` 设置时钟模式的显示色彩
 
+## 其他
+
+[demo](./demo) 文件夹中有示例像素动画图片序列
+
 # 许可证
 
 本项目使用 [GNU General Public License v3.0](./LICENSE) 许可证
